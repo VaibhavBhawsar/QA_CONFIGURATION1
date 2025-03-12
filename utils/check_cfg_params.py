@@ -1,5 +1,6 @@
 import configparser
 import argparse
+import os
 
 def read_cfg_to_dict(file_path):
     """Reads a .cfg file and converts it to a dictionary."""
@@ -44,6 +45,8 @@ def validate_config(actual_cfg, expected_cfg, file1_cfg_path):
     return mismatches, flag
 
 # Use argparse to take file paths as arguments
+os.chdir('..')
+os.chdir('cfgfiles')
 parser = argparse.ArgumentParser(description="Compare multiple .cfg files with a single expected .cfg file")
 parser.add_argument('actual_files', nargs='+', type=str, help="Path to the actual .cfg files")
 parser.add_argument('expected_file', type=str, help="Path to the expected .cfg file")
