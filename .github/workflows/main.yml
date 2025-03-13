@@ -1,51 +1,42 @@
-name: Code Correction
+name: Validate Config Files
 
 on:
-  push:
+  pull_request:
     branches:
       - main
+    paths:
+      - "config/*.cfg"  # Run only if .cfg files in "config/"
 
 jobs:
-  format_code:
+  validate_cfg:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10"]
-        
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Ensure commit history
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 2
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.10"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install openai autopep8 flake8 pylint
 
-      - name: Get changed Python files
+      - name: Get changed .cfg files
         id: changed_files
         run: |
-          CHANGED_FILES=$(git diff --name-only --diff-filter=AM HEAD^ HEAD -- '*.py' || echo "")
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/main HEAD -- 'config/*.cfg' || echo "")
           echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
-          echo "Changed files: $CHANGED_FILES"
+          echo "Changed config files: $CHANGED_FILES"
 
-      - name: Run code correction on changed files
+      - name: Run validation on changed config files
         if: env.CHANGED_FILES != ''
         run: |
-          for file in $CHANGED_FILES; do
-            echo "Processing: $file"
-            autopep8 --in-place --aggressive --aggressive "$file"
-          done
+          python utils/check_cfg_params.py $CHANGED_FILES config/expected.cfg
 
-      - name: Commit and push changes
-        run: |
-          git config --global user.email "akankshalede@gmail.com"
-          git config --global user.name "AkankshaLede"
-          git diff --quiet || (git add . && git commit -m "Auto-corrected Python files" && sleep 10 && git push)
+      - name: Fail PR on validation errors
+        if: failure()
+        run: exit 1
