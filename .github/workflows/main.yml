@@ -41,7 +41,7 @@ jobs:
         run: |
           for file in $CHANGED_FILES; do
             echo "Processing: $file"
-            python Bot.py "$file"
+            autopep8 --in-place --aggressive --aggressive "$file"
           done
 
       - name: Commit and push changes
