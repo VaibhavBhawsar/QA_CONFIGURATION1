@@ -1,42 +1,55 @@
-name: Validate Config Files
+name: Code Correction
 
 on:
-  pull_request:
+  push:
     branches:
       - main
-    paths:
-      - "config/*.cfg"  # Run only if .cfg files in "config/"
 
 jobs:
-  validate_cfg:
+  format_code:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+        
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 2  # Ensure commit history
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install openai autopep8 flake8 pylint
 
-      - name: Get changed .cfg files
+      - name: Get changed Python files
         id: changed_files
         run: |
-          CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/main HEAD -- 'config/*.cfg' || echo "")
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM HEAD^ HEAD -- '*.py' || echo "")
           echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
-          echo "Changed config files: $CHANGED_FILES"
+          echo "Changed files: $CHANGED_FILES"
 
-      - name: Run validation on changed config files
+      - name: Run code correction on changed files
         if: env.CHANGED_FILES != ''
         run: |
-          python utils/check_cfg_params.py $CHANGED_FILES config/expected.cfg
+          for file in $CHANGED_FILES; do
+            echo "Processing: $file"
+            autopep8 --in-place --aggressive --aggressive "$file"
+          done
 
-      - name: Fail PR on validation errors
-        if: failure()
-        run: exit 1
+      - name: Run comparison script
+        run: |
+          python utils/check_cfg_params.py cfgfiles/file1.cfg cfgfiles/file2.cfg cfgfiles/expected.cfg
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.email "bhavsarvaibhav001@gmail.com"
+          git config --global user.name "VaibhavBhawsar"
+          git diff --quiet || (git add . && git commit -m "Auto-corrected Python files" && sleep 10 && git push)
