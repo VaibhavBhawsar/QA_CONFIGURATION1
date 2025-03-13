@@ -46,7 +46,8 @@ jobs:
 
       - name: Run comparison script
         run: |
-          python utils/check_cfg_params.py cfgfiles/file1.cfg cfgfiles/file2.cfg cfgfiles/expected.cfg
+          cd utils  # Move into utils directory
+          python check_cfg_params.py ../cfgfiles/file1.cfg ../cfgfiles/file2.cfg ../cfgfiles/expected.cfg
 
       - name: Commit and push changes
         run: |
