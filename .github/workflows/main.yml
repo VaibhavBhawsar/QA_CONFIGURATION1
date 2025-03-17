@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'config/**'  # Trigger only if files in config/ change
+    branches-target:  
+      - automation  # ✅ Runs only for PRs targeting 'automation' branch
     types: [opened, synchronize, reopened]
   workflow_dispatch:  # Allows manual triggering from GitHub UI
 
@@ -33,7 +35,7 @@ jobs:
         id: find-configs
         run: |
           # Get changed .cfg files in the config/ directory
-          CHANGED_FILES=$(git diff --name-only origin/main...HEAD | grep '^config/.*\.cfg$' || true)
+          CHANGED_FILES=$(git diff --name-only origin/automation...HEAD | grep '^config/.*\.cfg$' || true)
 
           # Identify the expected/default file and input files
           DEFAULT_FILE=$(echo "$CHANGED_FILES" | grep -E "(default|expected)\.cfg" || echo "")
