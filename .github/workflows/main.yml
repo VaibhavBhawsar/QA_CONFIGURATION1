@@ -1,14 +1,14 @@
-name: PR Check with Dynamic Arguments
+name: PR Check - Validate Config Files
 
 on:
   pull_request:
     paths:
-      - 'cfgfiles/**'  # Trigger only if files in cfgfiles are changed
+      - 'config/**'  # Trigger only if files in config/ change
     types: [opened, synchronize, reopened]
   workflow_dispatch:  # Allows manual triggering from GitHub UI
 
 jobs:
-  run-python-script:
+  validate-configs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -29,13 +29,13 @@ jobs:
             echo "No requirements.txt found, skipping dependency installation."
           fi
 
-      - name: Find Config Files
+      - name: Find Changed Config Files
         id: find-configs
         run: |
-          # Get list of changed .cfg files under cfgfiles/
-          CHANGED_FILES=$(git diff --name-only origin/main...HEAD | grep '^cfgfiles/.*\.cfg$' || true)
+          # Get changed .cfg files in the config/ directory
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD | grep '^config/.*\.cfg$' || true)
 
-          # Identify default and input files
+          # Identify the expected/default file and input files
           DEFAULT_FILE=$(echo "$CHANGED_FILES" | grep -E "(default|expected)\.cfg" || echo "")
           INPUT_FILES=$(echo "$CHANGED_FILES" | grep -v "$DEFAULT_FILE" | tr '\n' ',')
 
@@ -52,14 +52,14 @@ jobs:
           echo "INPUT_FILES=${{ env.INPUT_FILES }}"
           echo "DEFAULT_FILE=${{ env.DEFAULT_FILE }}"
 
-      - name: Run Custom Python Script with Dynamic Arguments
+      - name: Run Python Validation Script
         if: env.INPUT_FILES != '' && env.DEFAULT_FILE != ''
         run: |
-          echo "Running script with input files: $INPUT_FILES and default file: $DEFAULT_FILE"
-          python3 utils/check_cfg_params.py --input_files "$INPUT_FILES" --default_file "$DEFAULT_FILE"
+          echo "Running validation script..."
+          python3 utils/check_cfg_params.py --input_files "${{ env.INPUT_FILES }}" --default_file "${{ env.DEFAULT_FILE }}"
 
-      - name: Check for Mismatch Flag
+      - name: Fail PR on Validation Errors
         if: failure()
         run: |
-          echo "Mismatch detected — failing the PR."
+          echo "Config file validation failed. Blocking PR merge."
           exit 1
