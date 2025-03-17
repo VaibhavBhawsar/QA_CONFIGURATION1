@@ -1,56 +1,64 @@
-name: Code Correction
-
+name: PR Check with Dynamic Arguments
+ 
 on:
-  push:
-    branches:
-      - main
-
+  pull_request:
+    paths:
+      - 'cfgfiles/**'  #  Trigger only if files in cfgfiles are changed
+    types: [opened, synchronize, reopened]
+ 
 jobs:
-  format_code:
+  run-python-script:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10"]
-        
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Ensure commit history
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+          fetch-depth: 2  #  Ensure commit history is available
+ 
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install dependencies
+          python-version: "3.10"
+ 
+      - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install openai autopep8 flake8 pylint
-
-      - name: Get changed Python files
-        id: changed_files
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            echo "No requirements.txt found, skipping dependency installation."
+          fi
+ 
+      #  Dynamically identify config files and default file
+      - name: Find Config Files
+        id: find-configs
         run: |
-          CHANGED_FILES=$(git diff --name-only --diff-filter=AM HEAD^ HEAD -- '*.py' || echo "")
-          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
+          # Get list of changed files in PR under cfgfiles/ folder
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD | grep '^cfgfiles/.*\.cfg$' || true)
+          
+          # Separate default file and input files
+          DEFAULT_FILE=$(echo "$CHANGED_FILES" | grep -E "(default|expected)\.cfg" || echo "")
+          INPUT_FILES=$(echo "$CHANGED_FILES" | grep -v "$DEFAULT_FILE" | tr '\n' ',')
+ 
           echo "Changed files: $CHANGED_FILES"
-
-      - name: Run code correction on changed files
-        if: env.CHANGED_FILES != ''
+          echo "Default file: $DEFAULT_FILE"
+          echo "Input files: $INPUT_FILES"
+ 
+          # Set environment variables for later steps
+          echo "INPUT_FILES=$INPUT_FILES" >> $GITHUB_ENV
+          echo "DEFAULT_FILE=$DEFAULT_FILE" >> $GITHUB_ENV
+ 
+      #  Run the script only if input files are found
+      - name: Run Custom Python Script with Dynamic Arguments
+        if: env.INPUT_FILES != '' && env.DEFAULT_FILE != ''
         run: |
-          for file in $CHANGED_FILES; do
-            echo "Processing: $file"
-            autopep8 --in-place --aggressive --aggressive "$file"
-          done
-
-      - name: Run comparison script
+          echo "Running script with input files: $INPUT_FILES and default file: $DEFAULT_FILE"
+          python3 utils/check_cfg_params.py --input-files "$INPUT_FILES" --default-file "$DEFAULT_FILE"
+ 
+      #  Fail the PR if mismatches are found
+      - name: Check for Mismatch Flag
+        if: failure()
         run: |
-          cd utils  # Move into utils directory
-          python check_cfg_params.py ../cfgfiles/file1.cfg ../cfgfiles/file2.cfg ../cfgfiles/expected.cfg
-
-      - name: Commit and push changes
-        run: |
-          git config --global user.email "bhavsarvaibhav001@gmail.com"
-          git config --global user.name "VaibhavBhawsar"
-          git diff --quiet || (git add . && git commit -m "Auto-corrected Python files" && sleep 10 && git push)
+          echo "Mismatch detected — failing the PR."
+          exit 1
+ 
+ 
