@@ -1,11 +1,11 @@
 name: PR Check with Dynamic Arguments
- 
+
 on:
   pull_request:
     paths:
-      - 'cfgfiles/**'  #  Trigger only if files in cfgfiles are changed
+      - 'cfgfiles/**'  # Trigger only if files in cfgfiles are changed
     types: [opened, synchronize, reopened]
- 
+
 jobs:
   run-python-script:
     runs-on: ubuntu-latest
@@ -13,13 +13,13 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  #  Ensure commit history is available
- 
+          fetch-depth: 0  # Ensure full commit history is available
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
- 
+
       - name: Install Dependencies
         run: |
           if [ -f requirements.txt ]; then
@@ -27,38 +27,38 @@ jobs:
           else
             echo "No requirements.txt found, skipping dependency installation."
           fi
- 
-      #  Dynamically identify config files and default file
+
       - name: Find Config Files
         id: find-configs
         run: |
-          # Get list of changed files in PR under cfgfiles/ folder
+          # Get list of changed .cfg files under cfgfiles/
           CHANGED_FILES=$(git diff --name-only origin/main...HEAD | grep '^cfgfiles/.*\.cfg$' || true)
-          
-          # Separate default file and input files
+
+          # Identify default and input files
           DEFAULT_FILE=$(echo "$CHANGED_FILES" | grep -E "(default|expected)\.cfg" || echo "")
           INPUT_FILES=$(echo "$CHANGED_FILES" | grep -v "$DEFAULT_FILE" | tr '\n' ',')
- 
+
           echo "Changed files: $CHANGED_FILES"
           echo "Default file: $DEFAULT_FILE"
           echo "Input files: $INPUT_FILES"
- 
-          # Set environment variables for later steps
+
+          # Set environment variables
           echo "INPUT_FILES=$INPUT_FILES" >> $GITHUB_ENV
           echo "DEFAULT_FILE=$DEFAULT_FILE" >> $GITHUB_ENV
- 
-      #  Run the script only if input files are found
+
+      - name: Debug Environment Variables
+        run: |
+          echo "INPUT_FILES=${{ env.INPUT_FILES }}"
+          echo "DEFAULT_FILE=${{ env.DEFAULT_FILE }}"
+
       - name: Run Custom Python Script with Dynamic Arguments
         if: env.INPUT_FILES != '' && env.DEFAULT_FILE != ''
         run: |
           echo "Running script with input files: $INPUT_FILES and default file: $DEFAULT_FILE"
-          python3 utils/check_cfg_params.py --input-files "$INPUT_FILES" --default-file "$DEFAULT_FILE"
- 
-      #  Fail the PR if mismatches are found
+          python3 utils/check_cfg_params.py --input_files "$INPUT_FILES" --default_file "$DEFAULT_FILE"
+
       - name: Check for Mismatch Flag
         if: failure()
         run: |
           echo "Mismatch detected — failing the PR."
           exit 1
- 
- 
