@@ -3,9 +3,9 @@ name: PR Check - Validate Config Files
 on:
   pull_request:
     paths:
-      - 'config/**'  # Trigger only if files in config/ change
-    branches-target:  
-      - automation  # ✅ Runs only for PRs targeting 'automation' branch
+      - 'cfgfiles/**'  # ✅ Updated path to match repo structure
+    branches:
+      - automation
     types: [opened, synchronize, reopened]
   workflow_dispatch:  # Allows manual triggering from GitHub UI
 
@@ -34,14 +34,18 @@ jobs:
       - name: Find Changed Config Files
         id: find-configs
         run: |
-          # Get changed .cfg files in the config/ directory
-          CHANGED_FILES=$(git diff --name-only origin/automation...HEAD | grep '^config/.*\.cfg$' || true)
+          # Debug: Print changed files
+          echo "Changed files from git diff:"
+          git diff --name-only origin/automation...HEAD
+
+          # Get changed .cfg files in the cfgfiles/ directory
+          CHANGED_FILES=$(git diff --name-only origin/automation...HEAD | grep '^cfgfiles/.*\.cfg$' || true)
 
           # Identify the expected/default file and input files
           DEFAULT_FILE=$(echo "$CHANGED_FILES" | grep -E "(default|expected)\.cfg" || echo "")
           INPUT_FILES=$(echo "$CHANGED_FILES" | grep -v "$DEFAULT_FILE" | tr '\n' ',')
 
-          echo "Changed files: $CHANGED_FILES"
+          echo "Changed .cfg files: $CHANGED_FILES"
           echo "Default file: $DEFAULT_FILE"
           echo "Input files: $INPUT_FILES"
 
